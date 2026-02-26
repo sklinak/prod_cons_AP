@@ -68,13 +68,6 @@ public:
         cv.wait(lock, [&] { return isAllDoneLocked(); });
     }
 
-    void printProgress() {
-        std::unique_lock<std::mutex> lock(m);
-        int count = 0;
-        for (bool done : processed_rows) if (done) count++;
-        std::cout << "Прогресс: " << count << "/"
-                  << processed_rows.size() << " строк\n";
-    }
 };
 
 // ---------------- Task Structure ----------------
