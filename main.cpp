@@ -53,7 +53,7 @@ public:
             std::unique_lock<std::mutex> lock(m);
             processed_rows[row] = true;
         }
-        cv.notify_all(); // важно: будим всех, кто может ждать "все готово"
+        cv.notify_all();
     }
 
     bool isAllDoneLocked() const {
@@ -127,8 +127,6 @@ void producer(const std::string& filename,
 
     if (!img) {
         std::cout << "Ошибка загрузки " << filename << std::endl;
-        // если producer не стартовал нормально, consumers будут ждать вечно.
-        // Чтобы не повиснуть — отправим poison и выйдем.
         for (int i = 0; i < consumersCount; ++i) {
             Task poison{};
             poison.is_poison = true;
@@ -139,7 +137,6 @@ void producer(const std::string& filename,
 
     std::cout << "Загружено: " << filename << std::endl;
 
-    // создаём задачи по строкам
     for (int r = 0; r < h; ++r) {
         Task t;
         t.data = img;
@@ -152,10 +149,8 @@ void producer(const std::string& filename,
         queue.push(t);
     }
 
-    // ждём, пока все строки будут обработаны
     collector.waitAllDone();
 
-    // отправляем poison для каждого consumer (чтобы они вышли)
     for (int i = 0; i < consumersCount; ++i) {
         Task poison{};
         poison.is_poison = true;
@@ -179,7 +174,6 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // нужно знать height для ResultCollector
     int w = 0, h = 0, ch = 0;
     uint8_t* temp_img = stbi_load(argv[1], &w, &h, &ch, 0);
     if (!temp_img) {
@@ -205,7 +199,6 @@ int main(int argc, char* argv[]) {
                      consumersCount,
                      std::ref(collector));
 
-    // ВАЖНО: join producer, иначе будет std::terminate
     prod.join();
 
     for (auto& t : consumers) {
