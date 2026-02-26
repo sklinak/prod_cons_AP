@@ -12,7 +12,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-// ---------------- Blocking Queue ----------------
+
 template<typename T>
 class BlockingQueue {
 private:
@@ -38,7 +38,7 @@ public:
     }
 };
 
-// ---------------- Result Collection Structure ----------------
+
 class ResultCollector {
 private:
     std::vector<bool> processed_rows;
@@ -53,7 +53,7 @@ public:
             std::unique_lock<std::mutex> lock(m);
             processed_rows[row] = true;
         }
-        cv.notify_all();
+        cv.notify_all(); 
     }
 
     bool isAllDoneLocked() const {
@@ -70,7 +70,7 @@ public:
 
 };
 
-// ---------------- Task Structure ----------------
+
 struct Task {
     uint8_t* data = nullptr;
     int width = 0;
@@ -81,7 +81,7 @@ struct Task {
     ResultCollector* collector = nullptr;
 };
 
-// ---------------- Row Inversion ----------------
+
 void invertRow(const Task& t) {
     uint8_t* line = t.data + t.row * t.width * t.channels;
 
@@ -93,7 +93,7 @@ void invertRow(const Task& t) {
     }
 }
 
-// ---------------- Consumer ----------------
+
 void consumer(BlockingQueue<Task>& queue) {
     while (true) {
         Task task = queue.pop();
@@ -109,7 +109,7 @@ void consumer(BlockingQueue<Task>& queue) {
     }
 }
 
-// ---------------- Producer ----------------
+
 void producer(const std::string& filename,
               BlockingQueue<Task>& queue,
               int consumersCount,
@@ -119,7 +119,8 @@ void producer(const std::string& filename,
     uint8_t* img = stbi_load(filename.c_str(), &w, &h, &ch, 0);
 
     if (!img) {
-        std::cout << "Ошибка загрузки " << filename << std::endl;
+        std::cout << "Download error " << filename << std::endl;
+        
         for (int i = 0; i < consumersCount; ++i) {
             Task poison{};
             poison.is_poison = true;
@@ -128,8 +129,9 @@ void producer(const std::string& filename,
         return;
     }
 
-    std::cout << "Загружено: " << filename << std::endl;
+    std::cout << "Uploaded: " << filename << std::endl;
 
+    
     for (int r = 0; r < h; ++r) {
         Task t;
         t.data = img;
@@ -142,8 +144,10 @@ void producer(const std::string& filename,
         queue.push(t);
     }
 
+
     collector.waitAllDone();
 
+    
     for (int i = 0; i < consumersCount; ++i) {
         Task poison{};
         poison.is_poison = true;
@@ -155,22 +159,23 @@ void producer(const std::string& filename,
 
     stbi_write_png(out.c_str(), w, h, ch, img, w * ch);
 
-    std::cout << "Сохранено: " << out << std::endl;
+    std::cout << "Saved: " << out << std::endl;
 
     stbi_image_free(img);
 }
 
-// ---------------- main ----------------
+
 int main(int argc, char* argv[]) {
     if (argc < 2) {
-        std::cout << "Использование: " << argv[0] << " image.png\n";
+        std::cout << "Usage: " << argv[0] << " image.png\n";
         return 1;
     }
 
+  
     int w = 0, h = 0, ch = 0;
     uint8_t* temp_img = stbi_load(argv[1], &w, &h, &ch, 0);
     if (!temp_img) {
-        std::cout << "Ошибка загрузки " << argv[1] << std::endl;
+        std::cout << "Download error " << argv[1] << std::endl;
         return 1;
     }
     stbi_image_free(temp_img);
@@ -192,12 +197,13 @@ int main(int argc, char* argv[]) {
                      consumersCount,
                      std::ref(collector));
 
+    
     prod.join();
 
     for (auto& t : consumers) {
         t.join();
     }
 
-    std::cout << "Работа завершена.\n";
+    std::cout << "The work is completed.\n";
     return 0;
 }
